@@ -1,0 +1,14 @@
+FROM postgres:11-alpine3.15
+
+# Ensure the database directory exists and is accessible
+RUN mkdir -p /var/lib/postgresql/data
+
+# Copy PostgreSQL configuration from the new path
+# COPY ./src/BackendAssignment.Infrastructure/Configs/postgresql.conf /var/lib/postgresql/data/postgresql.conf
+
+# Set PostgreSQL configuration
+ENV POSTGRES_DB=books
+ENV POSTGRES_USER=postgres
+ENV POSTGRES_PASSWORD=password
+
+EXPOSE 5433

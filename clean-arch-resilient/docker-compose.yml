@@ -1,0 +1,41 @@
+services:
+  redis:
+    image: redis:5.0-alpine3.15
+    entrypoint:
+      - redis-server
+      - /usr/local/etc/redis/redis.conf
+    environment:
+      - REDISCLI_AUTH=password
+    volumes:
+      - ./src/BackendAssignment.Infrastructure/Configs/redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+  
+  postgres:
+    build:
+      context: .
+      dockerfile: src/BackendAssignment.Infrastructure/Docker/Postgres-Dockerfile
+    user: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: books
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  flyway:
+    image: flyway/flyway:latest
+    depends_on:
+      - postgres
+    command: [ "bash", "-c", "until pg_isready -h postgres -p 5432; do sleep 2; done; flyway migrate" ]
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/books
+      FLYWAY_USER: postgres
+      FLYWAY_PASSWORD: password
+    volumes:
+      - ./src/BackendAssignment.Infrastructure/Persistence/migrations:/flyway/sql
+
+volumes:
+  pgdata: 
