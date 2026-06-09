@@ -1,42 +1,118 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/WvVNABOK)
-#### NOTE
+# Solution
+
+## Overview of the Application
+
+This application is built to be **reliable, efficient, and scalable**. It works with external services while keeping everything running smoothly. I followed **clean architecture**, used **Polly** to handle errors and retries, **Flyway** for database migrations, and **Hangfire** to run background tasks.
+
+I also added best practices like **IP geolocation** using IPAPI, **circuit breakers**, **retry policies**, and **rate-limiting** to make sure external services don’t affect overall performance.
+
 ---
-This is not the coursework handout. This is just a quick reference project readme.  
-Please refer to the official handout from google classroom for more details.
 
+## Design and Architecture Choices
 
-#### Part 1
+### Clean Architecture
+
+Organized the code into three layers: **Application**, **Infrastructure**, and **Domain**. This helps:
+
+1. Keep the main logic (business logic) separate from external systems.
+2. Make it easier to switch services or databases later if needed.
+3. Allow each part of the system to be tested on its own.
+
+### Polly for Resilience
+
+Used **Polly** to manage temporary failures when calling external services:
+
+- **Retry Policy**: If a request fails, the app tries again up to 2 times using exponential backoff and jitter.
+- **Circuit Breaker**: If a service fails 3 times in a row, requests stop for a while to let the service recover.
+- **Fallback**: If all retries fail, the app returns a default response instead of crashing.
+
+### Jitter in Retry Policies
+
+I added **jitter** (a random delay) to retry attempts to avoid multiple retries hitting a service at the same time. This prevents **retry storms**.
+
 ---
-Taking the role of a backend engineer, you are requested to design and develop a system that will manage books.
 
-A book entity must have a title, a publication date, a category, an author and the number of pages in it.
+## Key Functional Components
 
-An author entity must have a first name, last name, country and number of books published.
+### IPAPI Integration
 
-Your system should fulfil all of the following requirements:
+**IPAPI** to get location data based on a user's IP address. It’s built as a **separate service** to make things more flexible and scalable:
 
-- Using the provided postgres (docker image) design your database tables that will store your books
-- Support all CRUD (Create, Read, Update, Delete) operations
-- Provide a search endpoint that will allow the API caller to search based on all book attributes (title, author, etc)
-- Provide a bulk insert endpoint. This endpoint should support an operation for inserting and updating book details in big batches. First, it must expose a POST method that will allow the caller to provide a JSON array of items that should be inserted/updated. The caller should get a unique identifier for the job as a response indicating that the job is queued for processing. Posted items should be put into a buffer for parallel processing. These will be processed in batches of 10. (Find a reasonable size of parallel jobs that fits your hardware limitations)
-- Provide an endpoint for checking the status of the bulk operation / job. Example of potential status of your job can be: Queued, In-progress, Completed, etc
-- All endpoints provided should respect the RESTful principles with appropriate HTTP codes for relevant errors, etc
+- **Separation of concerns**: The logic is kept in one place, which makes it easier to update or change.
+- **Scalability**: I can switch to another provider anytime without affecting the rest of the system.
+- **Caching**: I use **Redis** to cache location data so I don’t need to make API calls every time, which improves performance.
 
-#### Don't
-*Do not* use entity framework or any other ORM, use only raw sql  
-*Do not* make views, there is no need for UI  
+### Database Migrations with Flyway
 
+I used **Flyway** to manage database migrations. It helps version and apply changes to the database in a controlled way. This keeps the database in sync with the codebase across different environments.
 
-#### Part 2
 ---
-Extremely pleased from your performance and the previous deliverables, the company is now requesting you to extend upon the previously submitted work.
 
-During the project briefing, the company is sharing some security concerns with you. They would like you to enhance the previous endpoints with a token based authentication system and incoming throttling (20 Requests per 2 Seconds) in order to avoid any surprises.
+## Why I Made These Choices
 
-Also, they are providing you with an external service that they would like to consume. This is an External REST API that provides IP address lookup and related services. Using this api (https://ipapi.co/), you are requested to protect the creation and deletion operations and restrict the origin of the requests to Greece. Any request coming for create and delete from any other country should be denied.
+### Clean Architecture
 
-Other than that, you are requested to enhance all relevant services and/or repositories with in-app caching to optimise the usage of the persistent layer and external dependencies.
+Clean architecture keeps things clean and organized. It also makes the app easier to maintain and grow over time without messing up the core logic.
 
-In order to keep up with the high quality of your previous work, you should focus on delivering fast, high quality code within specs. Proper HTTP responses/codes and good test coverage (above 80%)
+### Polly for Resilience
 
-To help you out with the requirement extraction, an in-house analyst is providing you with some user stories to include with your requirements.
+External services can fail sometimes. Polly helps the app deal with that by retrying requests, handling timeouts, and falling back to safe defaults so users don’t notice any issues.
+
+### IP Geolocation as a Service
+
+By keeping geolocation as a separate service, I made the app more modular. This approach allows easy replacement or modification of the geolocation service without affecting other areas of the application. 
+Since the app is currently running in a local environment, I’ve handled local IP addresses (like 127.0.0.1 or ::1) to be simulated as if they’re coming from Greece. 
+This ensures that testing the geolocation service works seamlessly in a local development setting without requiring real external IP lookups.
+
+### Hangfire for Background Jobs
+
+I used Hangfire to handle background jobs, specifically for batch processing and bulk insertion. These jobs are processed asynchronously, ensuring that the main application remains fast and responsive. 
+The background tasks are queued and processed in batches, which improves efficiency for large data operations. You can access the Hangfire dashboard at the following URL:
+http://localhost:5000/hangfire
+
+### Circuit Breaker
+
+The **circuit breaker** helps avoid calling a service that’s already down. It pauses for a bit after several failures, then tries again once things seem stable.
+
+---
+
+## API Design & Security
+
+### Rate Limiting
+
+Added **rate limiting** using Polly to prevent too many requests from hitting external services. If a service starts returning a `429 Too Many Requests` error, the app automatically backs off.
+
+### Authentication & Authorization
+
+I used **JWT tokens** for secure login. Only logged-in users can access certain data. There are two roles for testing:
+
+- **Developer**
+  - Username: `dev`
+  - Password: `dev`
+- **User**
+  - Username: `user`
+  - Password: `user`
+
+---
+
+## Test Coverage
+
+Since I followed clean architecture, writing tests was simple. I used **xUnit** for unit tests. I made sure the **service** and **repository** layers are fully tested, including the **retry** and **circuit breaker** logic. This helps make sure the app can handle failures without breaking.
+Additionally, integration testing was used only for ensuring that the application starts successfully. This test checks if the application initializes without throwing any exceptions.
+
+---
+
+## Conclusion
+
+This application is built with **resilience**, **scalability**, and **maintainability** in mind. I used clean architecture to keep things organized, Polly to handle errors, Flyway to manage the database, and Hangfire for background tasks.
+
+The IP geolocation service is modular and easy to change. With **retry policies**, **circuit breakers**, and **fallbacks**, the app is designed to keep working even when external services don’t.
+
+---
+
+## Notes
+
+- **Swagger UI**: API docs are available at `http://localhost:5000/swagger`.
+- **Port**: The app runs locally on **port 5000**.
+- **Testing**: I focused on testing all the unit parts that can be tested using Unit Testing.
+- **API Docs**: All endpoints are documented with **Swagger/OpenAPI**.
